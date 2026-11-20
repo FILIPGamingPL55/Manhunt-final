@@ -1,0 +1,94 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Zależności
+        run: npm install
+
+      - name: Folder www (aplikacja, mapa, QR)
+        run: node prepare.js
+
+      - name: Projekt Androida
+        run: npx cap add android
+
+      - name: Uprawnienia (GPS, kamera, NFC, wibracje)
+        run: node patch-android.js
+
+      # Poziom 1: pełne NFC - telefon biegacza udaje tag, łowca przykłada do niego swój telefon
+      - name: Budowanie APK z NFC telefon do telefonu
+        id: full
+        continue-on-error: true
+        run: |
+          npm install @exxili/capacitor-nfc
+          node hce-android.js
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      # Poziom 2: tylko odczyt tagów NFC (naklejki) + QR
+      - name: Zapasowy build - NFC tylko odczyt tagów
+        id: reader
+        if: steps.full.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          rm -rf android
+          npx cap add android
+          node patch-android.js
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      # Poziom 3: bez NFC, tylko QR
+      - name: Zapasowy build - tylko QR
+        if: steps.full.outcome == 'failure' && steps.reader.outcome == 'failure'
+        run: |
+          npm uninstall @exxili/capacitor-nfc
+          rm -rf android
+          npx cap add android
+          node patch-android.js
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Przygotuj plik
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk manhunt.apk
+
+      - name: Artefakt (zakładka Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: manhunt-apk
+          path: manhunt.apk
+
+      - name: Release (zakładka Releases)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Manhunt - najnowsza wersja
+          body: Pobierz plik manhunt.apk i zainstaluj go na telefonie.
+          files: manhunt.apk
+          make_latest: true
+
