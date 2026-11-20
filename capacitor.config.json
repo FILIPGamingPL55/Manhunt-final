@@ -1,0 +1,8 @@
+{
+  "appId": "pl.manhunt.app",
+  "appName": "Manhunt",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

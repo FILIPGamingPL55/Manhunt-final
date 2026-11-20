@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e9eee6">
+  <title>Manhunt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="banner" hidden></div>
+  <div id="toast" hidden></div>
+
+  <!-- EKRAN STARTOWY -->
+  <section id="s-home" class="screen">
+    <header class="hero">
+      <div class="rings" aria-hidden="true"><i></i><i></i><i></i></div>
+      <h1>Manhunt</h1>
+      <p class="muted">Berek z GPS-em. Biegacze uciekają, a łowcy co jakiś czas widzą, gdzie są.</p>
+    </header>
+
+    <div class="card">
+      <label>Twój nick
+        <input id="name" maxlength="16" placeholder="np. Kuba" autocomplete="off">
+      </label>
+      <button id="btn-create" class="primary">Utwórz lobby</button>
+      <div class="or">albo dołącz do znajomych</div>
+      <div class="row">
+        <input id="join-code" maxlength="5" placeholder="KOD" autocapitalize="characters" autocomplete="off">
+        <button id="btn-join">Dołącz</button>
+      </div>
+    </div>
+
+    <details id="server" class="card">
+      <summary>Serwer gry (Firebase)</summary>
+      <p class="muted small">Wszyscy gracze muszą mieć wpisany ten sam adres bazy Firebase Realtime Database.</p>
+      <input id="db-url" placeholder="https://twoj-projekt-default-rtdb.europe-west1.firebasedatabase.app" autocomplete="off" autocapitalize="off">
+      <button id="btn-db-save">Zapisz i sprawdź</button>
+      <div id="db-status" class="muted small"></div>
+    </details>
+  </section>
+
+  <!-- LOBBY -->
+  <section id="s-lobby" class="screen" hidden>
+    <div class="card center">
+      <div class="muted small">Kod lobby</div>
+      <div id="lobby-code" class="code">-----</div>
+      <button id="btn-share">Udostępnij kod</button>
+    </div>
+
+    <div class="card">
+      <h2>Gracze (<span id="pcount">0</span>)</h2>
+      <ul id="players" class="list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Ustawienia</h2>
+      <label>Podział ról
+        <select id="set-assign">
+          <option value="random">Losowy</option>
+          <option value="manual">Każdy wybiera sam</option>
+        </select>
+      </label>
+      <label id="lbl-hunters">Liczba łowców
+        <input id="set-hunters" type="number" min="1" max="29" inputmode="numeric">
+      </label>
+      <label>Lokalizacja biegaczy odsłaniana co
+        <select id="set-reveal"></select>
+      </label>
+      <label>Fory dla biegaczy
+        <select id="set-head"></select>
+      </label>
+      <label>Czas gry (minuty)
+        <input id="set-duration" type="number" min="1" max="720" inputmode="numeric">
+      </label>
+      <label>Jak łapać biegaczy
+        <select id="set-catch">
+          <option value="scan">Skan kodu QR lub tagu NFC</option>
+          <option value="manual">Ręcznie, przyciskiem „Złapany”</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="lobby-hint" class="muted small center"></div>
+    <div id="lobby-gps" class="muted small center gps"></div>
+    <button id="btn-start" class="primary big">Start gry</button>
+    <button id="btn-leave" class="ghost">Wyjdź z lobby</button>
+  </section>
+
+  <!-- GRA -->
+  <section id="s-game" class="screen game" hidden>
+    <div class="topbar">
+      <span id="g-role" class="badge"></span>
+      <span id="g-left"></span>
+      <span id="g-alive"></span>
+    </div>
+    <div id="g-status" class="status"></div>
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div class="map-btns">
+        <button id="btn-me" title="Pokaż mnie">◎</button>
+        <button id="btn-all" title="Pokaż wszystkich">⤢</button>
+      </div>
+    </div>
+    <div id="g-gps" class="muted small center gps"></div>
+    <div id="g-nfc" class="small center" hidden></div>
+    <div id="g-list" class="rlist" hidden></div>
+    <div class="row actions">
+      <button id="btn-scan" class="primary" hidden>Skanuj biegacza</button>
+      <button id="btn-mycode" class="primary" hidden>Pokaż mój kod</button>
+      <button id="btn-caught" class="danger" hidden>Zostałem złapany</button>
+      <button id="btn-end" class="ghost" hidden>Zakończ grę</button>
+    </div>
+  </section>
+
+  <!-- KONIEC -->
+  <section id="s-end" class="screen" hidden>
+    <div class="card center">
+      <h1 id="end-title"></h1>
+      <p id="end-sub" class="muted"></p>
+    </div>
+    <div class="card">
+      <h2>Biegacze</h2>
+      <ul id="end-list" class="list"></ul>
+    </div>
+    <button id="btn-again" class="primary big" hidden>Zagraj jeszcze raz</button>
+    <div id="end-wait" class="muted small center" hidden>Czekaj, aż host zacznie nową rundę…</div>
+    <button id="btn-leave2" class="ghost">Wyjdź z lobby</button>
+  </section>
+
+  <!-- SKANER (łowca) -->
+  <section id="scan" class="sheet" hidden>
+    <h2>Skanuj biegacza</h2>
+    <div class="viewfinder"><video id="scan-video" playsinline muted></video></div>
+    <div id="scan-msg" class="muted center" role="status"></div>
+    <button id="btn-nfc-scan" hidden>Skanuj tag NFC</button>
+    <div class="row">
+      <input id="scan-manual" maxlength="40" placeholder="Albo wpisz kod biegacza" autocomplete="off" autocapitalize="characters">
+      <button id="btn-manual-ok">OK</button>
+    </div>
+    <button id="btn-scan-close" class="ghost">Zamknij</button>
+  </section>
+
+  <!-- MÓJ KOD (biegacz) -->
+  <section id="mycode" class="sheet" hidden>
+    <h2>Twój kod</h2>
+    <p class="muted center">Pokaż go łowcy, który Cię dogoni. Łowca skanuje kod swoim telefonem.</p>
+    <div id="qr" class="qrbox"></div>
+    <div id="secret" class="secret"></div>
+    <p id="hce-note" class="muted center small" hidden>NFC jest włączone: łowca może też przyłożyć swój telefon do Twojego.</p>
+    <div id="mycode-msg" class="muted center" role="status"></div>
+    <button id="btn-nfc-write" hidden>Zapisz kod na tagu NFC</button>
+    <button id="btn-mycode-close" class="ghost">Zamknij</button>
+  </section>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/jsqr/jsQR.js"></script>
+  <script src="vendor/qrcode/qrcode.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
